@@ -26,183 +26,10 @@ import {
   X,
 } from "lucide-react";
 
-type Connection = "suggested" | "pending" | "friend" | "incoming" | "dismissed";
-type Tab = "discover" | "friends" | "requests";
-type Person = {
-  id: number;
-  name: string;
-  role: string;
-  city: string;
-  bio: string;
-  interests: string[];
-  mutual: number;
-  color: string;
-  connection: Connection;
-};
-type Profile = {
-  name: string;
-  role: string;
-  city: string;
-  bio: string;
-  interests: string[];
-};
-const initialProfile: Profile = {
-  name: "Ngân Nguyễn",
-  role: "Một người thích những điều nhỏ xinh",
-  city: "TP. Hồ Chí Minh",
-  bio: "Gom một chút nắng, một chút cà phê và thật nhiều câu chuyện hay. Rất vui được gặp bạn ở đây!",
-  interests: ["Thiết kế", "Cà phê", "Du lịch"],
-};
-const initialPeople: Person[] = [
-  {
-    id: 1,
-    name: "Linh Phạm",
-    role: "Nhà thiết kế · người yêu màu sắc",
-    city: "TP. Hồ Chí Minh",
-    bio: "Thích kể chuyện bằng hình ảnh và tìm những quán cà phê có cửa sổ đầy nắng.",
-    interests: ["Thiết kế", "Cà phê"],
-    mutual: 4,
-    color: "peach",
-    connection: "suggested",
-  },
-  {
-    id: 2,
-    name: "Minh Anh",
-    role: "Nhiếp ảnh gia · mê những chuyến đi",
-    city: "Đà Nẵng",
-    bio: "Luôn mang theo máy ảnh. Mỗi chuyến đi là một câu chuyện mới.",
-    interests: ["Nhiếp ảnh", "Du lịch"],
-    mutual: 3,
-    color: "sage",
-    connection: "suggested",
-  },
-  {
-    id: 3,
-    name: "Tuấn Trần",
-    role: "Lập trình viên · thích làm điều mới",
-    city: "Hà Nội",
-    bio: "Làm sản phẩm nhỏ, đọc sách lớn. Tìm bạn cùng chia sẻ những ý tưởng hay.",
-    interests: ["Công nghệ", "Sách"],
-    mutual: 2,
-    color: "lavender",
-    connection: "suggested",
-  },
-  {
-    id: 4,
-    name: "Hà My",
-    role: "Sáng tạo nội dung · yêu cuộc sống",
-    city: "TP. Hồ Chí Minh",
-    bio: "Những ngày bình thường cũng có thể rất đặc biệt. Cùng tìm niềm vui mỗi ngày nhé.",
-    interests: ["Âm nhạc", "Du lịch"],
-    mutual: 5,
-    color: "yellow",
-    connection: "suggested",
-  },
-  {
-    id: 5,
-    name: "Bảo Ngọc",
-    role: "Illustrator · một chút mộng mơ",
-    city: "Đà Lạt",
-    bio: "Vẽ những điều mình yêu. Thích cây xanh, mèo và buổi chiều chậm rãi.",
-    interests: ["Thiết kế", "Nghệ thuật"],
-    mutual: 2,
-    color: "rose",
-    connection: "suggested",
-  },
-  {
-    id: 6,
-    name: "Đức Hoàng",
-    role: "Người kể chuyện · bạn của sách",
-    city: "Hà Nội",
-    bio: "Có cuốn sách nào bạn muốn giới thiệu không? Mình luôn sẵn sàng lắng nghe.",
-    interests: ["Sách", "Cà phê"],
-    mutual: 1,
-    color: "sky",
-    connection: "suggested",
-  },
-  {
-    id: 7,
-    name: "Thảo Lê",
-    role: "Yêu nghệ thuật và những điều tử tế",
-    city: "TP. Hồ Chí Minh",
-    bio: "Mình tin những cuộc gặp gỡ nhỏ có thể mang lại niềm vui lớn.",
-    interests: ["Nghệ thuật", "Thiết kế"],
-    mutual: 3,
-    color: "rose",
-    connection: "incoming",
-  },
-  {
-    id: 8,
-    name: "Quang Nguyễn",
-    role: "Chạy bộ, cà phê và khám phá",
-    city: "Đà Nẵng",
-    bio: "Cùng chạy một vòng rồi đi uống cà phê nhé!",
-    interests: ["Thể thao", "Cà phê"],
-    mutual: 2,
-    color: "sky",
-    connection: "incoming",
-  },
-  {
-    id: 9,
-    name: "Khánh Vy",
-    role: "Thích đọc sách dưới tán cây",
-    city: "TP. Hồ Chí Minh",
-    bio: "Một người bạn của sách và những câu chuyện nhẹ nhàng.",
-    interests: ["Sách", "Du lịch"],
-    mutual: 2,
-    color: "sage",
-    connection: "friend",
-  },
-  {
-    id: 10,
-    name: "Nam Đỗ",
-    role: "Âm nhạc làm mọi thứ vui hơn",
-    city: "Hà Nội",
-    bio: "Chia sẻ playlist, tìm bạn đi xem nhạc và làm quen với những điều mới.",
-    interests: ["Âm nhạc", "Công nghệ"],
-    mutual: 1,
-    color: "lavender",
-    connection: "friend",
-  },
-];
-const storageKey = "massege-profile-v1";
-function loadData(): { profile: Profile; people: Person[] } {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      const p = saved.profile;
-      if (
-        p &&
-        ["name", "role", "city", "bio"].every(
-          (k) => typeof p[k] === "string",
-        ) &&
-        Array.isArray(p.interests) &&
-        p.interests.every((i: unknown) => typeof i === "string")
-      ) {
-        const statuses: Connection[] = [
-          "suggested",
-          "pending",
-          "friend",
-          "incoming",
-          "dismissed",
-        ];
-        return {
-          profile: p,
-          people: initialPeople.map((person) => ({
-            ...person,
-            connection: statuses.includes(saved.connections?.[person.id])
-              ? saved.connections[person.id]
-              : person.connection,
-          })),
-        };
-      }
-    }
-  } catch {
-    /* Unsupported storage or invalid local data: use the sample profile. */
-  }
-  return { profile: initialProfile, people: initialPeople };
-}
+import { type Connection, type Tab, type Person, type Profile } from "./demo";
+import { AuthGate } from "./auth/AuthGate";
+import { useSocialData } from "./lib/useSocialData";
+import type { Session } from "@supabase/supabase-js";
 
 function Flower() {
   return (
@@ -229,12 +56,16 @@ function Avatar({
   size = "",
   name,
 }: {
-  id?: number;
+  id?: number | string;
   color?: string;
   size?: string;
   name: string;
 }) {
-  const longHair = id % 3 !== 2;
+  const seed =
+    typeof id === "number"
+      ? id
+      : Array.from(id).reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0);
+  const longHair = seed % 3 !== 2;
   return (
     <span
       className={`avatar ${color} ${size}`}
@@ -244,7 +75,7 @@ function Avatar({
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <path
           d="M17 102c1-28 15-38 33-38s32 10 33 38"
-          fill={["#ed785f", "#547968", "#706489", "#558198"][id % 4]}
+          fill={["#ed785f", "#547968", "#706489", "#558198"][seed % 4]}
         />
         {longHair && (
           <path d="M25 61V42c0-37 51-37 51 0v32H25" fill="#493330" />
@@ -255,7 +86,7 @@ function Avatar({
           cy="43"
           rx="21"
           ry="26"
-          fill={id % 2 ? "#eaba94" : "#f4c5a2"}
+          fill={seed % 2 ? "#eaba94" : "#f4c5a2"}
         />
         <path
           d="M28 39c-6-28 40-37 45-5-17 1-24-4-28-10-1 8-8 13-17 15"
@@ -270,7 +101,7 @@ function Avatar({
           fill="none"
           strokeLinecap="round"
         />
-        {id % 3 === 2 && (
+        {seed % 3 === 2 && (
           <g fill="none" stroke="#493330" strokeWidth="1.5">
             <rect x="33" y="39" width="14" height="11" rx="4" />
             <rect x="53" y="39" width="14" height="11" rx="4" />
@@ -324,37 +155,48 @@ function Modal({
 }
 
 export default function App() {
-  const [initial] = useState(loadData);
-  const [profile, setProfile] = useState(initial.profile);
-  const [people, setPeople] = useState(initial.people);
+  return (
+    <AuthGate>
+      {(session, exit) => (
+        <SocialApp
+          key={session?.user.id ?? "demo"}
+          session={session}
+          exit={exit}
+        />
+      )}
+    </AuthGate>
+  );
+}
+
+function SocialApp({
+  session,
+  exit,
+}: {
+  session: Session | null;
+  exit: (() => void) | null;
+}) {
+  const {
+    profile,
+    people,
+    loading,
+    loadError,
+    storageError,
+    busy,
+    refresh,
+    saveProfile,
+    updateConnection,
+  } = useSocialData(session);
   const [tab, setTab] = useState<Tab>("discover");
   const [query, setQuery] = useState("");
   const [interest, setInterest] = useState("Tất cả");
   const [editing, setEditing] = useState(false);
-  const [viewing, setViewing] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<number | string | null>(null);
   const [toast, setToast] = useState("");
-  const [storageError, setStorageError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const friends = people.filter((p) => p.connection === "friend");
   const incoming = people.filter((p) => p.connection === "incoming");
   const pending = people.filter((p) => p.connection === "pending");
   const selected = people.find((p) => p.id === viewing);
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          profile,
-          connections: Object.fromEntries(
-            people.map((p) => [p.id, p.connection]),
-          ),
-        }),
-      );
-      setStorageError(false);
-    } catch {
-      setStorageError(true);
-    }
-  }, [people, profile]);
   useEffect(() => {
     if (!toast) return;
     const timeout = setTimeout(() => setToast(""), 3500);
@@ -366,19 +208,25 @@ export default function App() {
     setInterest("Tất cả");
     setMenuOpen(false);
   }
-  function connect(person: Person, next: Connection) {
-    setPeople((current) =>
-      current.map((p) => (p.id === person.id ? { ...p, connection: next } : p)),
-    );
-    setToast(
-      next === "pending"
-        ? `Đã gửi lời mời cho ${person.name}`
-        : next === "friend"
-          ? `Bạn và ${person.name} đã trở thành bạn bè!`
-          : next === "dismissed"
-            ? `Đã từ chối lời mời của ${person.name}`
-            : "Đã hủy lời mời kết bạn",
-    );
+  async function connect(person: Person, next: Connection) {
+    try {
+      await updateConnection(person, next);
+      setToast(
+        next === "pending"
+          ? `Đã gửi lời mời cho ${person.name}`
+          : next === "friend"
+            ? `Bạn và ${person.name} đã trở thành bạn bè!`
+            : next === "dismissed"
+              ? `Đã từ chối lời mời của ${person.name}`
+              : "Đã hủy lời mời kết bạn",
+      );
+    } catch (error) {
+      setToast(
+        error instanceof Error
+          ? error.message
+          : "Chưa thực hiện được thao tác. Vui lòng thử lại.",
+      );
+    }
   }
   function actions(person: Person) {
     if (person.connection === "friend")
@@ -391,6 +239,7 @@ export default function App() {
       return (
         <button
           className="button pending"
+          disabled={busy.has(String(person.id))}
           onClick={() => connect(person, "suggested")}
         >
           <Check size={16} /> Đã gửi · Hủy
@@ -401,12 +250,14 @@ export default function App() {
         <div className="request-actions">
           <button
             className="button primary"
+            disabled={busy.has(String(person.id))}
             onClick={() => connect(person, "friend")}
           >
             <Check size={16} /> Chấp nhận
           </button>
           <button
             className="button secondary"
+            disabled={busy.has(String(person.id))}
             onClick={() => connect(person, "dismissed")}
           >
             Từ chối
@@ -416,6 +267,7 @@ export default function App() {
     return (
       <button
         className="button connect"
+        disabled={busy.has(String(person.id))}
         onClick={() => connect(person, "pending")}
       >
         <UserRoundPlus size={16} /> Kết bạn
@@ -449,6 +301,30 @@ export default function App() {
     friends: "Có bạn bè, mỗi ngày đều vui hơn.",
     requests: "Một lời chào có thể mở đầu tình bạn.",
   };
+  if (loading)
+    return (
+      <div className="data-state">
+        <div className="brand">
+          <span className="brand-icon">m</span>massege.
+        </div>
+        <p role="status">Đang tải hồ sơ của bạn…</p>
+      </div>
+    );
+  if (loadError)
+    return (
+      <div className="data-state">
+        <h1>Chưa tải được hồ sơ</h1>
+        <p role="alert">{loadError}</p>
+        <button className="button primary" onClick={() => void refresh()}>
+          Thử lại
+        </button>
+        {exit && (
+          <button className="button secondary" onClick={exit}>
+            Đăng xuất
+          </button>
+        )}
+      </div>
+    );
   return (
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
@@ -513,7 +389,7 @@ export default function App() {
           </button>
         </div>
         <div className="sidebar-footer">
-          <Avatar name={profile.name} size="small" />
+          <Avatar id={session?.user.id ?? 0} name={profile.name} size="small" />
           <div>
             <strong>{profile.name}</strong>
             <span>Hồ sơ của bạn</span>
@@ -549,7 +425,14 @@ export default function App() {
             </strong>
           </div>
           <div className="topbar-tools">
-            <span className="demo-pill">Bản trải nghiệm</span>
+            <span className="demo-pill">
+              {session ? "Đã kết nối" : "Bản trải nghiệm"}
+            </span>
+            {exit && (
+              <button className="button secondary session-exit" onClick={exit}>
+                {session ? "Đăng xuất" : "Đăng nhập"}
+              </button>
+            )}
             <button
               className="notification-button icon-button"
               aria-label={`Lời mời kết bạn: ${incoming.length}`}
@@ -563,7 +446,11 @@ export default function App() {
               aria-label="Mở hồ sơ của tôi"
               onClick={() => setEditing(true)}
             >
-              <Avatar name={profile.name} size="small" />
+              <Avatar
+                id={session?.user.id ?? 0}
+                name={profile.name}
+                size="small"
+              />
             </button>
           </div>
         </header>
@@ -622,7 +509,11 @@ export default function App() {
                 </div>
                 <div className="profile-body">
                   <div className="profile-top">
-                    <Avatar name={profile.name} size="profile-avatar" />
+                    <Avatar
+                      id={session?.user.id ?? 0}
+                      name={profile.name}
+                      size="profile-avatar"
+                    />
                     <button
                       className="button secondary edit-button"
                       onClick={() => setEditing(true)}
@@ -799,11 +690,15 @@ export default function App() {
                         ))}
                       </div>
                       <div className="mutual-friends">
-                        <span className="mini-avatars">
-                          <Avatar id={9} name="Bạn chung" color="sage" />
-                          <Avatar id={10} name="Bạn chung" color="lavender" />
+                        {!session && (
+                          <span className="mini-avatars">
+                            <Avatar id={9} name="Bạn chung" color="sage" />
+                            <Avatar id={10} name="Bạn chung" color="lavender" />
+                          </span>
+                        )}
+                        <span>
+                          {person.mutual} bạn chung{!session && " · minh họa"}
                         </span>
-                        <span>{person.mutual} bạn chung · minh họa</span>
                       </div>
                       {tab === "requests" && (
                         <span className="request-direction">
@@ -880,15 +775,21 @@ export default function App() {
                       />
                       <span>
                         <strong>{person.name}</strong>
-                        <small>{person.mutual} bạn chung · minh họa</small>
+                        <small>
+                          {person.mutual} bạn chung{!session && " · minh họa"}
+                        </small>
                       </span>
                     </button>
                     <div className="small-actions">
-                      <button onClick={() => connect(person, "friend")}>
+                      <button
+                        disabled={busy.has(String(person.id))}
+                        onClick={() => connect(person, "friend")}
+                      >
                         Chấp nhận
                       </button>
                       <button
                         aria-label={`Từ chối ${person.name}`}
+                        disabled={busy.has(String(person.id))}
                         onClick={() => connect(person, "dismissed")}
                       >
                         <X size={17} />
@@ -966,7 +867,11 @@ export default function App() {
               <footer className="page-footer">
                 <span>massege. © 2026</span>
                 <p>Một nơi để kết nối, một nơi để là bạn.</p>
-                <small>Hồ sơ mẫu · dữ liệu lưu trên trình duyệt</small>
+                <small>
+                  {session
+                    ? "Kết nối bạn bè theo cách của bạn"
+                    : "Hồ sơ mẫu · dữ liệu lưu trên trình duyệt"}
+                </small>
               </footer>
             </aside>
           </div>
@@ -987,8 +892,8 @@ export default function App() {
         <EditProfile
           profile={profile}
           close={() => setEditing(false)}
-          save={(p) => {
-            setProfile(p);
+          save={async (p) => {
+            await saveProfile(p);
             setEditing(false);
             setToast("Đã lưu hồ sơ của bạn");
           }}
@@ -1030,32 +935,45 @@ function EditProfile({
 }: {
   profile: Profile;
   close: () => void;
-  save: (p: Profile) => void;
+  save: (p: Profile) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(profile);
   const [interests, setInterests] = useState(profile.interests.join(", "));
   const [error, setError] = useState("");
-  function submit(e: FormEvent) {
+  const [saving, setSaving] = useState(false);
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!draft.name.trim() || !draft.role.trim() || !draft.city.trim()) {
       setError("Vui lòng điền tên, giới thiệu ngắn và địa điểm.");
       return;
     }
-    save({
-      ...draft,
-      name: draft.name.trim(),
-      role: draft.role.trim(),
-      city: draft.city.trim(),
-      bio: draft.bio.trim(),
-      interests: [
-        ...new Set(
-          interests
-            .split(",")
-            .map((i) => i.trim())
-            .filter(Boolean),
-        ),
-      ].slice(0, 5),
-    });
+    setSaving(true);
+    setError("");
+    try {
+      await save({
+        ...draft,
+        name: draft.name.trim(),
+        role: draft.role.trim(),
+        city: draft.city.trim(),
+        bio: draft.bio.trim(),
+        interests: [
+          ...new Set(
+            interests
+              .split(",")
+              .map((i) => i.trim().slice(0, 30))
+              .filter(Boolean),
+          ),
+        ].slice(0, 5),
+      });
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Chưa lưu được hồ sơ. Vui lòng thử lại.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <Modal title="Một chút về bạn" close={close}>
@@ -1122,8 +1040,8 @@ function EditProfile({
           <button type="button" className="button secondary" onClick={close}>
             Để sau
           </button>
-          <button className="button primary" type="submit">
-            Lưu hồ sơ <Check size={16} />
+          <button className="button primary" type="submit" disabled={saving}>
+            {saving ? "Đang lưu…" : "Lưu hồ sơ"} <Check size={16} />
           </button>
         </div>
       </form>
