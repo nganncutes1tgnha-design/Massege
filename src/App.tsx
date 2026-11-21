@@ -16,6 +16,7 @@ import {
   Heart,
   MapPin,
   Menu,
+  Newspaper,
   Pencil,
   Search,
   Sparkles,
@@ -28,6 +29,7 @@ import {
 
 import { type Connection, type Tab, type Person, type Profile } from "./demo";
 import { AuthGate } from "./auth/AuthGate";
+import { Feed } from "./Feed";
 import { useSocialData } from "./lib/useSocialData";
 import type { Session } from "@supabase/supabase-js";
 
@@ -297,6 +299,7 @@ function SocialApp({
     );
   });
   const titles = {
+    feed: "Những chia sẻ mới từ cộng đồng.",
     discover: "Những kết nối mới, những câu chuyện mới.",
     friends: "Có bạn bè, mỗi ngày đều vui hơn.",
     requests: "Một lời chào có thể mở đầu tình bạn.",
@@ -341,6 +344,13 @@ function SocialApp({
         </a>
         <div className="sidebar-caption">GÓC NHỎ CỦA BẠN</div>
         <nav aria-label="Điều hướng chính">
+          <button
+            className={tab === "feed" ? "nav-link active" : "nav-link"}
+            aria-current={tab === "feed" ? "page" : undefined}
+            onClick={() => navigate("feed")}
+          >
+            <Newspaper size={20} /> Bảng tin
+          </button>
           <button
             className={tab === "discover" ? "nav-link active" : "nav-link"}
             onClick={() => navigate("discover")}
@@ -421,7 +431,7 @@ function SocialApp({
                 ? "Khám phá"
                 : tab === "friends"
                   ? "Bạn bè"
-                  : "Lời mời"}
+                  : tab === "feed" ? "Bảng tin" : "Lời mời"}
             </strong>
           </div>
           <div className="topbar-tools">
@@ -475,6 +485,9 @@ function SocialApp({
               được giữ khi tải lại.
             </div>
           )}
+          {tab === "feed" ? (
+            <Feed userId={session?.user.id} />
+          ) : (
           <div className="content-layout">
             <div className="main-column">
               <section className="profile-card" aria-label="Hồ sơ cá nhân">
@@ -875,6 +888,7 @@ function SocialApp({
               </footer>
             </aside>
           </div>
+          )}
         </main>
       </div>
       {toast && (

@@ -34,6 +34,10 @@ Vite dùng cổng 5173. `npm run build` kiểm tra TypeScript và tạo bản pr
 
 Cho phát triển cục bộ, sao chép `.env.example` thành `.env.local`, điền hai giá trị công khai và khởi động lại Vite. `.env.local` và thư mục `.vercel/` được Git bỏ qua. Không cấu hình cả hai biến thì bản mẫu vẫn hoạt động; cấu hình thiếu hoặc dùng key quản trị sẽ làm build thất bại trước khi bundle được tạo.
 
+## Bật bảng tin trên Supabase
+
+Sau migration hồ sơ và kết bạn, chạy [migration bảng tin](supabase/migrations/202611210001_feed.sql) một lần trong **SQL Editor** của đúng dự án Supabase. Thực hiện bước này trước khi triển khai bản web có bảng tin.
+
 ## Chức năng
 
 - Đăng ký email/mật khẩu, xác nhận email, đăng nhập, đăng xuất trên trình duyệt hiện tại và đặt lại mật khẩu.
@@ -44,7 +48,9 @@ Cho phát triển cục bộ, sao chép `.env.example` thành `.env.local`, đi�
 - RLS chỉ cho sửa hồ sơ của chính mình. Lời mời chỉ đọc được bởi hai người liên quan. Các thay đổi kết bạn đi qua RPC kiểm tra `auth.uid()`; người gửi không được tự chấp nhận lời mời.
 - Nếu không cấu hình Supabase, bản mẫu lưu trong localStorage vẫn hoạt động. Có thể khám phá bản mẫu từ trang đăng nhập, với dữ liệu tách biệt khỏi tài khoản thật.
 
-Chưa có đăng bài, nhắn tin, tải ảnh đại diện hoặc cập nhật realtime bằng WebSocket. Hồ sơ thật hiển thị với mọi người dùng đã đăng nhập.
+- Bảng tin cho tài khoản đã đăng nhập: bài viết văn bản, thích/bỏ thích và bình luận. Supabase kiểm tra quyền sửa/xóa theo tác giả. Xóa bài viết cũng xóa bình luận và lượt thích gắn với bài đó.
+
+Hồ sơ và bài viết hiển thị với mọi người dùng đã đăng nhập.
 
 ## Kiểm tra
 
@@ -53,7 +59,7 @@ npm run build
 npm run test:database
 ```
 
-13 kiểm tra database chạy migration/RLS/RPC thật bằng PostgreSQL qua PGlite, với schema `auth` mô phỏng vai trò Supabase. Chúng kiểm tra phạm vi sửa hồ sơ, quyền của người gửi/người nhận, chặn ghi trực tiếp, lời mời trùng/đảo chiều, số bạn chung và migration chạy lại. Đây không phải xác minh dự án Supabase đã được cài đặt.
+Các kiểm tra database chạy migration, RLS và RPC bằng PostgreSQL qua PGlite, với schema `auth` mô phỏng vai trò Supabase. Chúng kiểm tra quyền của tác giả, giới hạn nội dung, lượt thích trùng, dọn dữ liệu khi xóa bài và các luồng hồ sơ/kết bạn.
 
 Kiểm tra giao diện đăng nhập với HTTP fixtures hoàn toàn cục bộ (không gửi email hay tạo tài khoản ngoài hệ thống thử):
 

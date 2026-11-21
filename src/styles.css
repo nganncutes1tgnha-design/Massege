@@ -1981,3 +1981,50 @@ button:disabled {
     display: none;
   }
 }
+.feed {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.feed-card {
+  min-width: 0;
+  padding: clamp(16px, 4vw, 24px);
+  border: 1px solid #eaded8;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.feed-card h2 {
+  margin: 0 0 16px;
+}
+
+.feed-meta,
+.feed-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.feed-meta time {
+  color: #695a55;
+  font-size: 0.85rem;
+}
+
+.feed-body {
+  margin: 12px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.feed-actions button[aria-pressed="true"] {
+  color: #a83848;
+}
+
+.feed-comments,
+.feed-comment {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eaded8;
+}

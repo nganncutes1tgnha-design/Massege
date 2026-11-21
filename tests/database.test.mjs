@@ -8,6 +8,10 @@ const sql = await readFile(
   new URL("../supabase/migrations/202610140001_social.sql", import.meta.url),
   "utf8",
 );
+const feedSql = await readFile(
+  new URL("../supabase/migrations/202611210001_feed.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -24,6 +28,7 @@ before(async () => {
     grant execute on function auth.uid() to authenticated;
     insert into auth.users(id, raw_user_meta_data) values ('${A}', '{"full_name":"An"}');`);
   await db.exec(sql);
+  await db.exec(feedSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -295,4 +300,61 @@ test("rerunning the migration preserves user edits and accepted friendships", as
     ).rows[0].bio,
     "keep me",
   );
+});
+
+
+test("feed reads are authenticated and only authors can change posts or comments", async () => {
+  const { rows: [post] } = await asUser(A, () =>
+    db.query("insert into public.feed_posts(body) values ('Hello') returning id"));
+  const { rows: [comment] } = await asUser(B, () =>
+    db.query("insert into public.feed_comments(post_id, body) values ($1, 'Hi') returning id", [post.id]));
+  await assert.rejects(asUser(null, () => db.query("select * from public.feed_entries"), "anon"), denied);
+  await assert.rejects(asUser(B, () =>
+    db.query("insert into public.feed_posts(author_id, body) values ($1, 'Impersonation')", [A])), denied);
+  await assert.rejects(asUser(B, () =>
+    db.query("update public.feed_comments set author_id = $1 where id = $2", [A, comment.id])), denied);
+  const { rows } = await asUser(C, () =>
+    db.query("select author_name, comment_count from public.feed_entries where id = $1", [post.id]));
+  assert.deepEqual(rows, [{ author_name: "An", comment_count: 1 }]);
+
+  for (const [table, id, owner, other] of [
+    ["feed_posts", post.id, A, B],
+    ["feed_comments", comment.id, B, A],
+  ]) {
+    const edit = () => db.query(`update public.${table} set body = 'Edited' where id = $1 returning id`, [id]);
+    const remove = () => db.query(`delete from public.${table} where id = $1 returning id`, [id]);
+    assert.equal((await asUser(other, edit)).rows.length, 0);
+    assert.equal((await asUser(other, remove)).rows.length, 0);
+    assert.equal((await asUser(owner, edit)).rows.length, 1);
+  }
+  assert.equal((await asUser(B, () => db.query(
+    "delete from public.feed_comments where id = $1 returning id", [comment.id]))).rows.length, 1);
+  await asUser(A, () => db.query("delete from public.feed_posts where id = $1", [post.id]));
+});
+
+test("feed validates text, allows one like per account, and cleans up when a post is deleted", async () => {
+  await assert.rejects(asUser(A, () =>
+    db.query("insert into public.feed_posts(body) values ($1)", [" \n\t"])), { code: "23514" });
+  const { rows: [post] } = await asUser(A, () => db.query(
+    "insert into public.feed_posts(body) values ('Another post') returning id"));
+  await assert.rejects(asUser(B, () => db.query(
+    "insert into public.feed_comments(post_id, body) values ($1, repeat('b', 1001))", [post.id])), { code: "23514" });
+  await asUser(B, () => db.query(
+    "insert into public.feed_comments(post_id, body) values ($1, 'Comment')", [post.id]));
+  const like = () => db.query("insert into public.feed_likes(post_id) values ($1)", [post.id]);
+  await asUser(B, like);
+  await assert.rejects(asUser(B, like), { code: "23505" });
+  await asUser(C, like);
+  assert.equal((await asUser(A, () => db.query(
+    "delete from public.feed_likes where post_id = $1 returning user_id", [post.id]))).rows.length, 0);
+  await asUser(C, () => db.query(
+    "delete from public.feed_likes where post_id = $1 and user_id = $2", [post.id, C]));
+  const entry = () => db.query("select like_count, liked from public.feed_entries where id = $1", [post.id]);
+  assert.deepEqual((await asUser(B, entry)).rows, [{ like_count: 1, liked: true }]);
+  assert.deepEqual((await asUser(C, entry)).rows, [{ like_count: 1, liked: false }]);
+  await asUser(A, () => db.query("delete from public.feed_posts where id = $1", [post.id]));
+  for (const table of ["feed_likes", "feed_comments"]) {
+    const { rows } = await db.query(`select post_id from public.${table} where post_id = $1`, [post.id]);
+    assert.deepEqual(rows, []);
+  }
 });
