@@ -435,6 +435,12 @@ test("unread counts are private and only the recipient can mark messages read", 
   await assert.rejects(asUser(A, () => db.query("update public.direct_messages set read_at = now()")), denied);
   await mark(A, B, first);
   assert.deepEqual(await counts(A), [{ sender_id: B, unread_count: 1 }, { sender_id: C, unread_count: 1 }]);
+  const receipts = (actor) => asUser(actor, async () => (await db.query(
+    "select id, read_at is not null as seen from public.direct_messages where id in ($1, $2) order by id",
+    [first, latest],
+  )).rows);
+  assert.deepEqual(await receipts(B), [{ id: first, seen: true }, { id: latest, seen: false }]);
+  assert.deepEqual(await receipts(D), []);
   await mark(A, B, latest);
   await mark(A, B, latest);
   assert.deepEqual(await counts(A), [{ sender_id: C, unread_count: 1 }]);

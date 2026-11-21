@@ -6,10 +6,11 @@ type Message = {
   sender_id: string;
   body: string;
   created_at: string;
+  read_at: string | null;
 };
 
 const pageSize = 30;
-const fields = "id, sender_id, body, created_at";
+const fields = "id, sender_id, body, created_at, read_at";
 const formatTime = new Intl.DateTimeFormat("vi-VN", {
   dateStyle: "short",
   timeStyle: "short",
@@ -17,7 +18,10 @@ const formatTime = new Intl.DateTimeFormat("vi-VN", {
 
 function mergeMessages(current: Message[], incoming: Message[]) {
   const byId = new Map(current.map((message) => [message.id, message]));
-  for (const message of incoming) byId.set(message.id, message);
+  for (const message of incoming) {
+    const readAt = message.read_at ?? byId.get(message.id)?.read_at ?? null;
+    byId.set(message.id, { ...message, read_at: readAt });
+  }
   return [...byId.values()].sort((a, b) => b.id - a.id);
 }
 
@@ -83,6 +87,14 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
           setMessages((current) => mergeMessages(current, [row as Message]));
         }
       })
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "direct_messages",
+        filter: `sender_id=eq.${userId}`,
+      }, ({ new: row }) => {
+        if (row.recipient_id === recipientId && row.read_at) {
+          setMessages((current) => mergeMessages(current, [row as Message]));
+        }
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") void load(undefined, true);
       });
@@ -136,6 +148,8 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
     }
   }
 
+  const lastSent = messages.find((message) => message.sender_id === userId);
+
   return (
     <div className="direct-chat">
       <div className="feed-actions">
@@ -161,6 +175,11 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
                 <time dateTime={message.created_at}>{formatTime.format(new Date(message.created_at))}</time>
               </div>
               <p className="feed-body">{message.body}</p>
+              {message.id === lastSent?.id && (
+                <span className="direct-read-state" role="status">
+                  {message.read_at ? "Đã xem" : ""}
+                </span>
+              )}
             </li>
           ))}
         </ol>

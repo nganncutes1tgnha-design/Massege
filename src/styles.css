@@ -2057,6 +2057,11 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.direct-read-state {
+  color: #695a55;
+  font-size: 0.8rem;
+}
+
 .inbox-heading,
 .inbox-row {
   display: flex;
