@@ -24,6 +24,10 @@ const inboxSql = await readFile(
   new URL("../supabase/migrations/202611210004_direct_inbox.sql", import.meta.url),
   "utf8",
 );
+const imagesSql = await readFile(
+  new URL("../supabase/migrations/202611210005_direct_images.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -45,6 +49,17 @@ before(async () => {
   await db.exec("create publication supabase_realtime");
   await db.exec(realtimeSql);
   await db.exec(inboxSql);
+  await db.exec(`
+    create schema storage;
+    create table storage.buckets (
+      id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]
+    );
+    create table storage.objects (bucket_id text references storage.buckets, name text, unique(bucket_id, name));
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to authenticated;
+    grant select, insert, delete on storage.objects to authenticated;
+  `);
+  await db.exec(imagesSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -58,7 +73,7 @@ before(async () => {
   );
 });
 beforeEach(async () => {
-  await db.exec("reset role; truncate public.friend_requests, public.direct_messages;");
+  await db.exec("reset role; truncate public.friend_requests, public.direct_messages, storage.objects;");
 });
 after(async () => {
   await db.close();
@@ -475,4 +490,42 @@ test("inbox returns one recent preview per peer and counts only unread incoming 
   await asUser(A, () => db.query("select public.mark_direct_read($1, $2)", [B, first]));
   assert.deepEqual((await inbox(A)).map(({ unread_count }) => unread_count), [0, 1]);
   await assert.rejects(inbox(null, "anon"), denied);
+});
+
+test("chat images require friendship, remain private, and cannot be deleted once sent", async () => {
+  const bucket = "direct-chat-images";
+  const path = `${A}/${B}/00000000-0000-0000-0000-000000000010`;
+  const unused = `${A}/${B}/00000000-0000-0000-0000-000000000011`;
+  const upload = (user, name) => asUser(user, () => db.query(
+    "insert into storage.objects(bucket_id, name) values ($1, $2)", [bucket, name],
+  ));
+  const view = (user, name) => asUser(user, async () => (await db.query(
+    "select name from storage.objects where bucket_id = $1 and name = $2", [bucket, name],
+  )).rows);
+  const send = (user, recipient, image) => asUser(user, () => db.query(
+    "insert into public.direct_messages(recipient_id, body, image_path) values ($1, '', $2)",
+    [recipient, image],
+  ));
+  const remove = (user, name) => asUser(user, async () => (await db.query(
+    "delete from storage.objects where bucket_id = $1 and name = $2 returning name", [bucket, name],
+  )).rows);
+  await assert.rejects(upload(A, path), denied);
+  await rpc(A, "send_friend_request", B);
+  await rpc(B, "accept_friend_request", A);
+  await assert.rejects(upload(B, path), denied);
+  await assert.rejects(send(A, B, path), denied);
+  await upload(A, path);
+  assert.deepEqual(await view(A, path), [{ name: path }]);
+  assert.deepEqual(await view(B, path), []);
+  await send(A, B, path);
+  assert.deepEqual(await view(B, path), [{ name: path }]);
+  assert.deepEqual(await view(C, path), []);
+  assert.deepEqual(await remove(B, path), []);
+  assert.deepEqual(await remove(A, path), []);
+  await upload(A, unused);
+  assert.deepEqual(await remove(A, unused), [{ name: unused }]);
+  const inbox = await asUser(B, () => db.query("select last_preview from public.direct_inbox()"));
+  assert.deepEqual(inbox.rows, [{ last_preview: "Ảnh" }]);
+  const bucketSettings = await db.query("select public, file_size_limit from storage.buckets where id = $1", [bucket]);
+  assert.deepEqual(bucketSettings.rows, [{ public: false, file_size_limit: 5242880 }]);
 });

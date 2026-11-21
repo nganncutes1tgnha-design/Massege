@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ImagePlus } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import { ChatImage, chatImageBucket, chatImageTypes, maxChatImageBytes } from "./ChatImage";
 
 type Message = {
   id: number;
@@ -7,10 +9,11 @@ type Message = {
   body: string;
   created_at: string;
   read_at: string | null;
+  image_path: string | null;
 };
 
 const pageSize = 30;
-const fields = "id, sender_id, body, created_at, read_at";
+const fields = "id, sender_id, body, created_at, read_at, image_path";
 const formatTime = new Intl.DateTimeFormat("vi-VN", {
   dateStyle: "short",
   timeStyle: "short",
@@ -36,10 +39,19 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState("");
   const [draft, setDraft] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(false);
+  const picker = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const url = image ? URL.createObjectURL(image) : "";
+    setPreview(url);
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [image]);
 
   const load = useCallback(async (before?: number, background = false) => {
     if (background && request.current) return;
@@ -131,21 +143,41 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
   async function send(event: FormEvent) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body || sending || loading) return;
+    if ((!body && !image) || sending || loading) return;
     setSending(true);
     setSendError("");
+    const client = supabase!;
+    const images = client.storage.from(chatImageBucket);
+    let imagePath: string | null = null;
     try {
-      const { data, error } = await supabase!.from("direct_messages")
-        .insert({ recipient_id: recipientId, body }).select(fields).single();
+      if (image) {
+        imagePath = `${userId}/${recipientId}/${crypto.randomUUID()}`;
+        const { error } = await images.upload(imagePath, image, { contentType: image.type });
+        if (error) throw error;
+      }
+      const { data, error } = await client.from("direct_messages")
+        .insert({ recipient_id: recipientId, body, image_path: imagePath }).select(fields).single();
       if (error) throw error;
       if (!mounted.current) return;
       setDraft("");
+      setImage(null);
       setMessages((current) => mergeMessages(current, [data]));
     } catch {
+      if (imagePath) void images.remove([imagePath]).catch(() => {});
       setSendError("Chưa gửi được tin nhắn. Vui lòng thử lại.");
     } finally {
       setSending(false);
     }
+  }
+
+  function chooseImage(file?: File) {
+    if (!file) return;
+    if (!chatImageTypes.includes(file.type) || !file.size || file.size > maxChatImageBytes) {
+      setSendError("Chọn ảnh JPG, PNG, WebP hoặc GIF có dung lượng tối đa 5 MB.");
+      return;
+    }
+    setSendError("");
+    setImage(file);
   }
 
   const lastSent = messages.find((message) => message.sender_id === userId);
@@ -174,7 +206,8 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
                 <strong>{message.sender_id === userId ? "Bạn" : recipientName}</strong>
                 <time dateTime={message.created_at}>{formatTime.format(new Date(message.created_at))}</time>
               </div>
-              <p className="feed-body">{message.body}</p>
+              {message.image_path && <ChatImage key={message.image_path} path={message.image_path} />}
+              {message.body && <p className="feed-body">{message.body}</p>}
               {message.id === lastSent?.id && (
                 <span className="direct-read-state" role="status">
                   {message.read_at ? "Đã xem" : ""}
@@ -187,12 +220,29 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
       <form className="profile-form" onSubmit={send}>
         <label>
           Tin nhắn
-          <textarea rows={2} maxLength={2000} required value={draft} disabled={sending}
+          <textarea rows={2} maxLength={2000} value={draft} disabled={sending}
             onChange={(event) => setDraft(event.target.value)} />
         </label>
+        {image && preview && (
+          <div className="direct-image-preview">
+            <img className="direct-image" src={preview} alt="Ảnh sắp gửi" />
+            <button type="button" className="button secondary" disabled={sending}
+              onClick={() => { setImage(null); setSendError(""); }}>
+              Bỏ ảnh
+            </button>
+          </div>
+        )}
         {sendError && <p className="form-error" role="alert">{sendError}</p>}
         <div className="feed-actions">
-          <button className="button primary" disabled={sending || loading || !draft.trim()}>
+          <input type="file" ref={picker} accept={chatImageTypes.join(",")} hidden
+            onChange={(event) => {
+              chooseImage(event.target.files?.[0]);
+              event.target.value = "";
+            }} />
+          <button type="button" className="button secondary" disabled={sending} onClick={() => picker.current?.click()}>
+            <ImagePlus size={17} aria-hidden="true" /> Chọn ảnh
+          </button>
+          <button className="button primary" disabled={sending || loading || (!draft.trim() && !image)}>
             {sending ? "Đang gửi…" : "Gửi tin nhắn"}
           </button>
         </div>
