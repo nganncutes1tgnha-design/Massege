@@ -15,10 +15,17 @@ const formatTime = new Intl.DateTimeFormat("vi-VN", {
   timeStyle: "short",
 });
 
-export function DirectChat({ userId, recipientId, recipientName }: {
+function mergeMessages(current: Message[], incoming: Message[]) {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => b.id - a.id);
+}
+
+export function DirectChat({ userId, recipientId, recipientName, refreshUnread }: {
   userId: string;
   recipientId: string;
   recipientName: string;
+  refreshUnread: () => Promise<void>;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [older, setOlder] = useState(false);
@@ -28,13 +35,17 @@ export function DirectChat({ userId, recipientId, recipientName }: {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const request = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
 
-  const load = useCallback(async (before?: number) => {
+  const load = useCallback(async (before?: number, background = false) => {
+    if (background && request.current) return;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
-    setLoading(true);
-    setReadError("");
+    if (!background) {
+      setLoading(true);
+      setReadError("");
+    }
     try {
       const query = supabase!.from("direct_messages")
         .select(fields)
@@ -47,19 +58,63 @@ export function DirectChat({ userId, recipientId, recipientName }: {
       if (error) throw error;
       if (controller.signal.aborted) return;
       const page = data.slice(0, pageSize);
-      setMessages((current) => before === undefined ? page : [...current, ...page]);
-      setOlder(data.length > pageSize);
+      setMessages((current) => mergeMessages(current, page));
+      if (!background) setOlder(data.length > pageSize);
     } catch {
-      if (!controller.signal.aborted) setReadError("Chưa tải được tin nhắn. Vui lòng thử lại.");
+      if (!background && !controller.signal.aborted) setReadError("Chưa tải được tin nhắn. Vui lòng thử lại.");
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (request.current === controller) {
+        request.current = null;
+        setLoading(false);
+      }
     }
   }, [recipientId, userId]);
 
   useEffect(() => {
+    const client = supabase!;
+    mounted.current = true;
     void load();
-    return () => request.current?.abort();
-  }, [load]);
+    const channel = client.channel(`direct-chat:${userId}:${recipientId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "direct_messages",
+        filter: `recipient_id=eq.${userId}`,
+      }, ({ new: row }) => {
+        if (row.sender_id === recipientId) {
+          setMessages((current) => mergeMessages(current, [row as Message]));
+        }
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void load(undefined, true);
+      });
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(undefined, true);
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const timer = window.setInterval(refreshWhenVisible, 30000);
+    return () => {
+      mounted.current = false;
+      request.current?.abort();
+      request.current = null;
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.clearInterval(timer);
+      void client.removeChannel(channel);
+    };
+  }, [load, userId, recipientId]);
+
+  useEffect(() => {
+    const latest = messages.find((message) => message.sender_id === recipientId);
+    if (!latest) return;
+    const markRead = async () => {
+      if (document.visibilityState !== "visible") return;
+      const { error } = await supabase!.rpc("mark_direct_read", {
+        other_user: recipientId, through_id: latest.id,
+      });
+      if (!error) await refreshUnread();
+    };
+    void markRead();
+    document.addEventListener("visibilitychange", markRead);
+    return () => document.removeEventListener("visibilitychange", markRead);
+  }, [messages, recipientId, refreshUnread]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -68,11 +123,12 @@ export function DirectChat({ userId, recipientId, recipientName }: {
     setSending(true);
     setSendError("");
     try {
-      const { error } = await supabase!.from("direct_messages")
-        .insert({ recipient_id: recipientId, body });
+      const { data, error } = await supabase!.from("direct_messages")
+        .insert({ recipient_id: recipientId, body }).select(fields).single();
       if (error) throw error;
+      if (!mounted.current) return;
       setDraft("");
-      if (!request.current?.signal.aborted) await load();
+      setMessages((current) => mergeMessages(current, [data]));
     } catch {
       setSendError("Chưa gửi được tin nhắn. Vui lòng thử lại.");
     } finally {

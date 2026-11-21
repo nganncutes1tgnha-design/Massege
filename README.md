@@ -40,7 +40,7 @@ Sau migration hồ sơ và kết bạn, chạy [migration bảng tin](supabase/m
 
 ## Bật nhắn tin riêng
 
-Chạy [migration nhắn tin riêng](supabase/migrations/202611210002_direct_messages.sql) một lần trong **SQL Editor** của dự án Supabase. Người dùng đã kết bạn có thể mở **Bạn bè → Nhắn tin**, gửi văn bản, xem lịch sử và bấm **Làm mới tin nhắn** để xem tin mới.
+Chạy [migration nhắn tin riêng](supabase/migrations/202611210002_direct_messages.sql), rồi chạy [migration Realtime và tin chưa đọc](supabase/migrations/202611210003_direct_realtime.sql) trong **SQL Editor**. Người dùng đã kết bạn có thể mở **Bạn bè → Nhắn tin** để gửi văn bản và xem lịch sử. Tin mới tự xuất hiện và số tin chưa đọc hiển thị ở mục **Bạn bè** và cạnh từng nút **Nhắn tin**. Mở cuộc trò chuyện trong tab đang hiển thị sẽ đánh dấu các tin đã nhận là đã đọc.
 
 ## Chức năng
 

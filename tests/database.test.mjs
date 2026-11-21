@@ -16,6 +16,10 @@ const messagesSql = await readFile(
   new URL("../supabase/migrations/202611210002_direct_messages.sql", import.meta.url),
   "utf8",
 );
+const realtimeSql = await readFile(
+  new URL("../supabase/migrations/202611210003_direct_realtime.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -34,6 +38,8 @@ before(async () => {
   await db.exec(sql);
   await db.exec(feedSql);
   await db.exec(messagesSql);
+  await db.exec("create publication supabase_realtime");
+  await db.exec(realtimeSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -47,7 +53,7 @@ before(async () => {
   );
 });
 beforeEach(async () => {
-  await db.exec("reset role; truncate public.friend_requests;");
+  await db.exec("reset role; truncate public.friend_requests, public.direct_messages;");
 });
 after(async () => {
   await db.close();
@@ -394,4 +400,41 @@ test("direct messages require accepted friendship and remain visible only to the
     "insert into public.direct_messages(sender_id, recipient_id, body) values ($1, $2, 'Forged')",
     [A, B],
   )), denied);
+});
+
+test("unread counts are private and only the recipient can mark messages read", async () => {
+  for (const friend of [B, C]) {
+    await rpc(A, "send_friend_request", friend);
+    await rpc(friend, "accept_friend_request", A);
+  }
+  const send = (actor, recipient) => asUser(actor, async () => (await db.query(
+    "insert into public.direct_messages(recipient_id, body) values ($1, 'hi') returning id",
+    [recipient],
+  )).rows[0].id);
+  const counts = (actor, role) => asUser(actor, async () => (await db.query(
+    "select * from public.direct_unread_counts() order by sender_id",
+  )).rows, role);
+  const mark = (actor, sender, id) => asUser(actor, () => db.query(
+    "select public.mark_direct_read($1, $2)", [sender, id],
+  ));
+  const first = await send(B, A);
+  const latest = await send(B, A);
+  await send(C, A);
+  await send(A, B);
+  await mark(C, B, latest);
+  await mark(B, B, latest);
+  assert.deepEqual(await counts(A), [{ sender_id: B, unread_count: 2 }, { sender_id: C, unread_count: 1 }]);
+  assert.deepEqual(await counts(B), [{ sender_id: A, unread_count: 1 }]);
+  assert.deepEqual(await counts(D), []);
+  await assert.rejects(counts(null, "anon"), denied);
+  await assert.rejects(asUser(A, () => db.query("update public.direct_messages set read_at = now()")), denied);
+  await mark(A, B, first);
+  assert.deepEqual(await counts(A), [{ sender_id: B, unread_count: 1 }, { sender_id: C, unread_count: 1 }]);
+  await mark(A, B, latest);
+  await mark(A, B, latest);
+  assert.deepEqual(await counts(A), [{ sender_id: C, unread_count: 1 }]);
+  const publication = await db.query(
+    "select tablename from pg_publication_tables where pubname = 'supabase_realtime'",
+  );
+  assert.deepEqual(publication.rows, [{ tablename: "direct_messages" }]);
 });

@@ -32,6 +32,7 @@ import { type Connection, type Tab, type Person, type Profile } from "./demo";
 import { AuthGate } from "./auth/AuthGate";
 import { Feed } from "./Feed";
 import { DirectChat } from "./DirectChat";
+import { useDirectUnread } from "./lib/useDirectUnread";
 import { useSocialData } from "./lib/useSocialData";
 import type { Session } from "@supabase/supabase-js";
 
@@ -199,6 +200,8 @@ function SocialApp({
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const friends = people.filter((p) => p.connection === "friend");
+  const { unread, refreshUnread } = useDirectUnread(session?.user.id);
+  const unreadTotal = Object.values(unread).reduce((total, count) => total + count, 0);
   const incoming = people.filter((p) => p.connection === "incoming");
   const pending = people.filter((p) => p.connection === "pending");
   const selected = people.find((p) => p.id === viewing);
@@ -242,6 +245,11 @@ function SocialApp({
             setChat({ id: String(person.id), name: person.name });
           }}>
             <MessageCircle size={16} /> Nhắn tin
+            {unread[person.id] > 0 && (
+              <span className="nav-count coral" aria-label={`${unread[person.id]} tin chưa đọc`}>
+                {unread[person.id]}
+              </span>
+            )}
           </button>
         ) : (
           <span className="friend-state">
@@ -375,7 +383,11 @@ function SocialApp({
             onClick={() => navigate("friends")}
           >
             <UsersRound size={20} /> Bạn bè
-            <span className="nav-count">{friends.length}</span>
+            {unreadTotal > 0 ? (
+              <span className="nav-count coral" aria-label={`${unreadTotal} tin chưa đọc`}>
+                {unreadTotal}
+              </span>
+            ) : <span className="nav-count">{friends.length}</span>}
           </button>
           <button
             className={tab === "requests" ? "nav-link active" : "nav-link"}
@@ -927,7 +939,8 @@ function SocialApp({
       )}
       {session && chat && (
         <Modal title={`Nhắn tin với ${chat.name}`} close={() => setChat(null)}>
-          <DirectChat key={chat.id} userId={session.user.id} recipientId={chat.id} recipientName={chat.name} />
+          <DirectChat key={chat.id} userId={session.user.id} recipientId={chat.id}
+            recipientName={chat.name} refreshUnread={refreshUnread} />
         </Modal>
       )}
       {selected && (
