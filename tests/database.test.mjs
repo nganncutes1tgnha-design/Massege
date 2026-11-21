@@ -20,6 +20,10 @@ const realtimeSql = await readFile(
   new URL("../supabase/migrations/202611210003_direct_realtime.sql", import.meta.url),
   "utf8",
 );
+const inboxSql = await readFile(
+  new URL("../supabase/migrations/202611210004_direct_inbox.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -40,6 +44,7 @@ before(async () => {
   await db.exec(messagesSql);
   await db.exec("create publication supabase_realtime");
   await db.exec(realtimeSql);
+  await db.exec(inboxSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -437,4 +442,31 @@ test("unread counts are private and only the recipient can mark messages read", 
     "select tablename from pg_publication_tables where pubname = 'supabase_realtime'",
   );
   assert.deepEqual(publication.rows, [{ tablename: "direct_messages" }]);
+});
+
+test("inbox returns one recent preview per peer and counts only unread incoming messages", async () => {
+  for (const [sender, recipient] of [[A, B], [A, C], [B, D]]) {
+    await rpc(sender, "send_friend_request", recipient);
+    await rpc(recipient, "accept_friend_request", sender);
+  }
+  const send = (actor, recipient, body) => asUser(actor, async () => (await db.query(
+    "insert into public.direct_messages(recipient_id, body) values ($1, $2) returning id",
+    [recipient, body],
+  )).rows[0].id);
+  const inbox = (actor, role) => asUser(actor, async () => (await db.query(
+    "select peer_id, peer_name, last_sender_id, last_preview, unread_count from public.direct_inbox()",
+  )).rows, role);
+  const first = await send(B, A, "Old incoming");
+  await send(C, A, "Another conversation");
+  await send(A, B, "x".repeat(190));
+  await send(D, B, "Unrelated private message");
+
+  assert.deepEqual(await inbox(A), [
+    { peer_id: B, peer_name: "Bình", last_sender_id: A, last_preview: "x".repeat(160), unread_count: 1 },
+    { peer_id: C, peer_name: "Chi", last_sender_id: C, last_preview: "Another conversation", unread_count: 1 },
+  ]);
+  assert.deepEqual((await inbox(D)).map(({ peer_id, unread_count }) => [peer_id, unread_count]), [[B, 0]]);
+  await asUser(A, () => db.query("select public.mark_direct_read($1, $2)", [B, first]));
+  assert.deepEqual((await inbox(A)).map(({ unread_count }) => unread_count), [0, 1]);
+  await assert.rejects(inbox(null, "anon"), denied);
 });

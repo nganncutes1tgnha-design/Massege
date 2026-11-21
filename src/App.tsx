@@ -32,6 +32,7 @@ import { type Connection, type Tab, type Person, type Profile } from "./demo";
 import { AuthGate } from "./auth/AuthGate";
 import { Feed } from "./Feed";
 import { DirectChat } from "./DirectChat";
+import { DirectInbox } from "./DirectInbox";
 import { useDirectUnread } from "./lib/useDirectUnread";
 import { useSocialData } from "./lib/useSocialData";
 import type { Session } from "@supabase/supabase-js";
@@ -320,6 +321,7 @@ function SocialApp({
   });
   const titles = {
     feed: "Những chia sẻ mới từ cộng đồng.",
+    inbox: "Các cuộc trò chuyện của bạn.",
     discover: "Những kết nối mới, những câu chuyện mới.",
     friends: "Có bạn bè, mỗi ngày đều vui hơn.",
     requests: "Một lời chào có thể mở đầu tình bạn.",
@@ -370,6 +372,18 @@ function SocialApp({
             onClick={() => navigate("feed")}
           >
             <Newspaper size={20} /> Bảng tin
+          </button>
+          <button
+            className={tab === "inbox" ? "nav-link active" : "nav-link"}
+            aria-current={tab === "inbox" ? "page" : undefined}
+            onClick={() => navigate("inbox")}
+          >
+            <MessageCircle size={20} /> Tin nhắn
+            {unreadTotal > 0 && (
+              <span className="nav-count coral" aria-label={`${unreadTotal} tin chưa đọc`}>
+                {unreadTotal}
+              </span>
+            )}
           </button>
           <button
             className={tab === "discover" ? "nav-link active" : "nav-link"}
@@ -455,7 +469,7 @@ function SocialApp({
                 ? "Khám phá"
                 : tab === "friends"
                   ? "Bạn bè"
-                  : tab === "feed" ? "Bảng tin" : "Lời mời"}
+                  : tab === "feed" ? "Bảng tin" : tab === "inbox" ? "Tin nhắn" : "Lời mời"}
             </strong>
           </div>
           <div className="topbar-tools">
@@ -511,6 +525,8 @@ function SocialApp({
           )}
           {tab === "feed" ? (
             <Feed userId={session?.user.id} />
+          ) : tab === "inbox" ? (
+            <DirectInbox userId={session?.user.id} openChat={setChat} showFriends={() => navigate("friends")} />
           ) : (
           <div className="content-layout">
             <div className="main-column">

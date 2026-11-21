@@ -4,7 +4,7 @@ export type Connection =
   | "friend"
   | "incoming"
   | "dismissed";
-export type Tab = "discover" | "friends" | "requests" | "feed";
+export type Tab = "discover" | "friends" | "requests" | "feed" | "inbox";
 export type Person = {
   id: number | string;
   name: string;

@@ -44,6 +44,8 @@ Chạy [migration nhắn tin riêng](supabase/migrations/202611210002_direct_mes
 
 ## Chức năng
 
+- Mục **Tin nhắn** hiển thị các cuộc trò chuyện gần đây, lời nhắn cuối và số tin chưa đọc. Bật tính năng trên Supabase bằng [migration hộp thư](supabase/migrations/202611210004_direct_inbox.sql) sau migration Realtime.
+
 - Đăng ký email/mật khẩu, xác nhận email, đăng nhập, đăng xuất trên trình duyệt hiện tại và đặt lại mật khẩu.
 - Hồ sơ riêng: tên, giới thiệu, địa điểm, câu chuyện và tối đa 5 sở thích.
 - Tìm người theo tên, địa điểm hoặc sở thích; tìm kiếm tiếng Việt không dấu.
