@@ -2028,3 +2028,31 @@ button:disabled {
   padding-top: 16px;
   border-top: 1px solid #eaded8;
 }
+.direct-chat {
+  display: grid;
+  gap: 12px;
+}
+
+.direct-message-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(40vh, 360px);
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+}
+
+.direct-message {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f6f1ed;
+}
+
+.direct-message.own-message {
+  background: #ffe7de;
+}
+
+.direct-message .feed-body {
+  margin-bottom: 0;
+}

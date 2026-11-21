@@ -38,6 +38,10 @@ Cho phát triển cục bộ, sao chép `.env.example` thành `.env.local`, đi�
 
 Sau migration hồ sơ và kết bạn, chạy [migration bảng tin](supabase/migrations/202611210001_feed.sql) một lần trong **SQL Editor** của đúng dự án Supabase. Thực hiện bước này trước khi triển khai bản web có bảng tin.
 
+## Bật nhắn tin riêng
+
+Chạy [migration nhắn tin riêng](supabase/migrations/202611210002_direct_messages.sql) một lần trong **SQL Editor** của dự án Supabase. Người dùng đã kết bạn có thể mở **Bạn bè → Nhắn tin**, gửi văn bản, xem lịch sử và bấm **Làm mới tin nhắn** để xem tin mới.
+
 ## Chức năng
 
 - Đăng ký email/mật khẩu, xác nhận email, đăng nhập, đăng xuất trên trình duyệt hiện tại và đặt lại mật khẩu.

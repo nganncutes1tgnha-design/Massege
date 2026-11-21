@@ -12,6 +12,10 @@ const feedSql = await readFile(
   new URL("../supabase/migrations/202611210001_feed.sql", import.meta.url),
   "utf8",
 );
+const messagesSql = await readFile(
+  new URL("../supabase/migrations/202611210002_direct_messages.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -29,6 +33,7 @@ before(async () => {
     insert into auth.users(id, raw_user_meta_data) values ('${A}', '{"full_name":"An"}');`);
   await db.exec(sql);
   await db.exec(feedSql);
+  await db.exec(messagesSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -357,4 +362,36 @@ test("feed validates text, allows one like per account, and cleans up when a pos
     const { rows } = await db.query(`select post_id from public.${table} where post_id = $1`, [post.id]);
     assert.deepEqual(rows, []);
   }
+});
+
+test("direct messages require accepted friendship and remain visible only to their participants", async () => {
+  const send = (sender, recipient, body) => asUser(sender, () => db.query(
+    "insert into public.direct_messages(recipient_id, body) values ($1, $2) returning id, sender_id",
+    [recipient, body],
+  ));
+  const read = (actor, role = "authenticated") => asUser(actor, () =>
+    db.query("select sender_id, body from public.direct_messages order by id"), role);
+
+  await assert.rejects(send(A, B, "Before friendship"), denied);
+  await rpc(A, "send_friend_request", B);
+  await assert.rejects(send(B, A, "Pending friendship"), denied);
+  await rpc(B, "accept_friend_request", A);
+  assert.equal((await send(A, B, "Hello")).rows[0].sender_id, A);
+  await send(B, A, "Hi");
+  await rpc(A, "send_friend_request", C);
+  await rpc(C, "accept_friend_request", A);
+  await send(C, A, "Other conversation");
+
+  assert.deepEqual((await read(A)).rows.map(({ body }) => body), ["Hello", "Hi", "Other conversation"]);
+  assert.deepEqual((await read(B)).rows.map(({ body }) => body), ["Hello", "Hi"]);
+  assert.deepEqual((await read(C)).rows.map(({ body }) => body), ["Other conversation"]);
+  assert.deepEqual((await read(D)).rows, []);
+  await assert.rejects(read(null, "anon"), denied);
+  await assert.rejects(send(A, A, "Self"), denied);
+  await assert.rejects(send(A, B, "  \n\t"), { code: "23514" });
+  await assert.rejects(send(A, B, "b".repeat(2001)), { code: "23514" });
+  await assert.rejects(asUser(B, () => db.query(
+    "insert into public.direct_messages(sender_id, recipient_id, body) values ($1, $2, 'Forged')",
+    [A, B],
+  )), denied);
 });

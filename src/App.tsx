@@ -16,6 +16,7 @@ import {
   Heart,
   MapPin,
   Menu,
+  MessageCircle,
   Newspaper,
   Pencil,
   Search,
@@ -30,6 +31,7 @@ import {
 import { type Connection, type Tab, type Person, type Profile } from "./demo";
 import { AuthGate } from "./auth/AuthGate";
 import { Feed } from "./Feed";
+import { DirectChat } from "./DirectChat";
 import { useSocialData } from "./lib/useSocialData";
 import type { Session } from "@supabase/supabase-js";
 
@@ -193,6 +195,7 @@ function SocialApp({
   const [interest, setInterest] = useState("Tất cả");
   const [editing, setEditing] = useState(false);
   const [viewing, setViewing] = useState<number | string | null>(null);
+  const [chat, setChat] = useState<{ id: string; name: string } | null>(null);
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const friends = people.filter((p) => p.connection === "friend");
@@ -233,9 +236,18 @@ function SocialApp({
   function actions(person: Person) {
     if (person.connection === "friend")
       return (
-        <span className="friend-state">
-          <UserRoundCheck size={16} /> Đã là bạn bè
-        </span>
+        session && typeof person.id === "string" ? (
+          <button className="button secondary" onClick={() => {
+            setViewing(null);
+            setChat({ id: String(person.id), name: person.name });
+          }}>
+            <MessageCircle size={16} /> Nhắn tin
+          </button>
+        ) : (
+          <span className="friend-state">
+            <UserRoundCheck size={16} /> Đã là bạn bè
+          </span>
+        )
       );
     if (person.connection === "pending")
       return (
@@ -912,6 +924,11 @@ function SocialApp({
             setToast("Đã lưu hồ sơ của bạn");
           }}
         />
+      )}
+      {session && chat && (
+        <Modal title={`Nhắn tin với ${chat.name}`} close={() => setChat(null)}>
+          <DirectChat key={chat.id} userId={session.user.id} recipientId={chat.id} recipientName={chat.name} />
+        </Modal>
       )}
       {selected && (
         <Modal title="Một người bạn mới" close={() => setViewing(null)}>
