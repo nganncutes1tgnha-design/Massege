@@ -28,6 +28,10 @@ const imagesSql = await readFile(
   new URL("../supabase/migrations/202611210005_direct_images.sql", import.meta.url),
   "utf8",
 );
+const editMessagesSql = await readFile(
+  new URL("../supabase/migrations/202611210006_edit_direct_messages.sql", import.meta.url),
+  "utf8",
+);
 const A = "00000000-0000-0000-0000-000000000001";
 const B = "00000000-0000-0000-0000-000000000002";
 const C = "00000000-0000-0000-0000-000000000003";
@@ -60,6 +64,7 @@ before(async () => {
     grant select, insert, delete on storage.objects to authenticated;
   `);
   await db.exec(imagesSql);
+  await db.exec(editMessagesSql);
   await db.query(
     "insert into auth.users(id, raw_user_meta_data) values ($1, $2), ($3, $4), ($5, $6)",
     [
@@ -528,4 +533,31 @@ test("chat images require friendship, remain private, and cannot be deleted once
   assert.deepEqual(inbox.rows, [{ last_preview: "Ảnh" }]);
   const bucketSettings = await db.query("select public, file_size_limit from storage.buckets where id = $1", [bucket]);
   assert.deepEqual(bucketSettings.rows, [{ public: false, file_size_limit: 5242880 }]);
+});
++
+test("only the author can edit a direct message and its edit time is server-managed", async () => {
+  await rpc(A, "send_friend_request", B);
+  await rpc(B, "accept_friend_request", A);
+  const { rows: [message] } = await asUser(A, () => db.query(
+    "insert into public.direct_messages(recipient_id, body) values ($1, 'Bản gốc') returning id, edited_at",
+    [B],
+  ));
+  assert.equal(message.edited_at, null);
+  const edit = (actor, body) => asUser(actor, () => db.query(
+    "update public.direct_messages set body = $1 where id = $2 returning body, edited_at is not null as edited",
+    [body, message.id],
+  ));
+  assert.deepEqual((await edit(A, "Bản đã sửa")).rows, [{ body: "Bản đã sửa", edited: true }]);
+  const visibleToRecipient = await asUser(B, () => db.query(
+    "select body, edited_at is not null as edited from public.direct_messages where id = $1",
+    [message.id],
+  ));
+  assert.deepEqual(visibleToRecipient.rows, [{ body: "Bản đã sửa", edited: true }]);
+  assert.equal((await edit(B, "Đổi hộ")).rows.length, 0);
+  assert.equal((await edit(C, "Đổi hộ")).rows.length, 0);
+  await assert.rejects(edit(A, " \n\t"), { code: "23514" });
+  await assert.rejects(asUser(A, () => db.query(
+    "update public.direct_messages set recipient_id = $1 where id = $2",
+    [C, message.id],
+  )), denied);
 });

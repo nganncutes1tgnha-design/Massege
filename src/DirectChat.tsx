@@ -9,11 +9,12 @@ type Message = {
   body: string;
   created_at: string;
   read_at: string | null;
+  edited_at: string | null;
   image_path: string | null;
 };
 
 const pageSize = 30;
-const fields = "id, sender_id, body, created_at, read_at, image_path";
+const fields = "id, sender_id, body, created_at, read_at, edited_at, image_path";
 const formatTime = new Intl.DateTimeFormat("vi-VN", {
   dateStyle: "short",
   timeStyle: "short",
@@ -43,6 +44,10 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
   const [preview, setPreview] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [editError, setEditError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const picker = useRef<HTMLInputElement | null>(null);
@@ -103,7 +108,15 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
         event: "UPDATE", schema: "public", table: "direct_messages",
         filter: `sender_id=eq.${userId}`,
       }, ({ new: row }) => {
-        if (row.recipient_id === recipientId && row.read_at) {
+        if (row.recipient_id === recipientId) {
+          setMessages((current) => mergeMessages(current, [row as Message]));
+        }
+      })
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "direct_messages",
+        filter: `recipient_id=eq.${userId}`,
+      }, ({ new: row }) => {
+        if (row.sender_id === recipientId) {
           setMessages((current) => mergeMessages(current, [row as Message]));
         }
       })
@@ -180,6 +193,32 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
     setImage(file);
   }
 
+  function beginEdit(message: Message) {
+    setEditingId(message.id);
+    setEditBody(message.body);
+    setEditError("");
+  }
+
+  async function saveEdit(event: FormEvent, message: Message) {
+    event.preventDefault();
+    const body = editBody.trim();
+    if ((!body && !message.image_path) || savingEdit) return;
+    setSavingEdit(true);
+    setEditError("");
+    try {
+      const { data, error } = await supabase!.from("direct_messages")
+        .update({ body }).eq("id", message.id).select(fields).single();
+      if (error) throw error;
+      setMessages((current) => mergeMessages(current, [data]));
+      setEditingId(null);
+      setEditBody("");
+    } catch {
+      setEditError("Chưa sửa được tin nhắn. Vui lòng thử lại.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   const lastSent = messages.find((message) => message.sender_id === userId);
 
   return (
@@ -207,7 +246,32 @@ export function DirectChat({ userId, recipientId, recipientName, refreshUnread }
                 <time dateTime={message.created_at}>{formatTime.format(new Date(message.created_at))}</time>
               </div>
               {message.image_path && <ChatImage key={message.image_path} path={message.image_path} />}
-              {message.body && <p className="feed-body">{message.body}</p>}
+              {editingId === message.id ? (
+                <form className="direct-edit-form" onSubmit={(event) => void saveEdit(event, message)}>
+                  <label>
+                    Sửa tin nhắn
+                    <textarea rows={2} maxLength={2000} value={editBody} autoFocus disabled={savingEdit}
+                      onChange={(event) => setEditBody(event.target.value)} />
+                  </label>
+                  {editError && <p className="form-error" role="alert">{editError}</p>}
+                  <div className="feed-actions">
+                    <button className="button primary" disabled={savingEdit || (!editBody.trim() && !message.image_path)}>
+                      {savingEdit ? "Đang lưu…" : "Lưu"}
+                    </button>
+                    <button type="button" className="button secondary" disabled={savingEdit} onClick={() => {
+                      setEditingId(null);
+                      setEditBody("");
+                      setEditError("");
+                    }}>
+                      Hủy
+                    </button>
+                  </div>
+                </form>
+              ) : message.body && <p className="feed-body">{message.body}</p>}
+              {message.edited_at && <span className="direct-edited-state">Đã sửa</span>}
+              {message.sender_id === userId && editingId !== message.id && (
+                <button className="direct-edit-button" onClick={() => beginEdit(message)}>Sửa</button>
+              )}
               {message.id === lastSent?.id && (
                 <span className="direct-read-state" role="status">
                   {message.read_at ? "Đã xem" : ""}

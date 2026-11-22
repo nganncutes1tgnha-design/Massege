@@ -2062,6 +2062,30 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+.direct-edited-state,
+.direct-edit-button {
+  color: #695a55;
+  font-size: 0.8rem;
+}
+
+.direct-edit-button {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+}
+
+.direct-edit-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.direct-edit-form textarea {
+  width: 100%;
+}
+
 .direct-image {
   display: block;
   max-width: 100%;
